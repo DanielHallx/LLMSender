@@ -182,3 +182,24 @@ tasks:
 #     type: "cron"
 #     hour: 12
 #     minute: 0
+
+# Example of Anthropic Claude configuration
+# - name: "Anthropic Claude Example"
+#   content:
+#     plugin: weather
+#     city: "San Francisco"
+#   
+#   llm:
+#     plugin: anthropic_sender
+#     model: "claude-sonnet-4-20250514"  # or "claude-opus-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"
+#     # api_key: ${ANTHROPIC_API_KEY}
+#     temperature: 0.7
+#     max_tokens: 500
+#   
+#   notifiers:
+#     - plugin: telegram
+#   
+#   schedule:
+#     type: "cron"
+#     hour: 12
+#     minute: 0

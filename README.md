@@ -50,7 +50,7 @@ LLMSender/
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/DanielHallx/LLMSender.git
 cd LLMSender
 
 # Create virtual environment
@@ -93,6 +93,9 @@ export GEMINI_API_KEY="your-gemini-api-key"
 # Optional: Azure OpenAI
 export AZURE_OPENAI_API_KEY="your-azure-key"
 export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+
+# Optional: Anthropic Claude
+export ANTHROPIC_API_KEY="your-anthropic-key"
 ```
 
 ### 4. Run the Application

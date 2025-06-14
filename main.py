@@ -9,6 +9,10 @@ from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 from core.plugin_loader import PluginLoader
 from core.utils import setup_logging, TaskTimer, get_env_var
 
@@ -71,7 +75,7 @@ class LLMSenderApp:
         with TaskTimer(task_name):
             try:
                 # Load content provider plugin
-                content_config = task_config.get('content', {})
+                content_config = task_config.get('content', {}).copy()
                 content_plugin_name = content_config.pop('plugin', None)
                 
                 if not content_plugin_name:
@@ -87,8 +91,11 @@ class LLMSenderApp:
                 prompt = content_provider.get_prompt()
                 
                 # Load LLM plugin
-                llm_config = task_config.get('llm', {})
+                llm_config = task_config.get('llm', {}).copy()
                 llm_plugin_name = llm_config.pop('plugin', None)
+                
+                # Debug: Log the config being passed to LLM plugin
+                logger.debug(f"Passing config to {llm_plugin_name}: {list(llm_config.keys())}")
                 
                 if not llm_plugin_name:
                     raise ValueError("LLM plugin not specified")
@@ -106,7 +113,9 @@ class LLMSenderApp:
                 title = task_config.get('title', task_name)
                 
                 for notifier_config in notifiers:
-                    notifier_plugin_name = notifier_config.pop('plugin', None)
+                    # Make a copy to avoid modifying the original config
+                    notifier_config_copy = notifier_config.copy()
+                    notifier_plugin_name = notifier_config_copy.pop('plugin', None)
                     
                     if not notifier_plugin_name:
                         logger.warning("Notifier plugin not specified, skipping")
@@ -114,7 +123,7 @@ class LLMSenderApp:
                     
                     try:
                         notifier = PluginLoader.load_plugin(
-                            'notifier', notifier_plugin_name, notifier_config
+                            'notifier', notifier_plugin_name, notifier_config_copy
                         )
                         
                         logger.info(f"Sending notification via {notifier_plugin_name}")
@@ -137,10 +146,12 @@ class LLMSenderApp:
                 error_notifiers = task_config.get('error_notifiers', [])
                 for notifier_config in error_notifiers:
                     try:
-                        notifier_plugin_name = notifier_config.pop('plugin', None)
+                        # Make a copy to avoid modifying the original config
+                        notifier_config_copy = notifier_config.copy()
+                        notifier_plugin_name = notifier_config_copy.pop('plugin', None)
                         if notifier_plugin_name:
                             notifier = PluginLoader.load_plugin(
-                                'notifier', notifier_plugin_name, notifier_config
+                                'notifier', notifier_plugin_name, notifier_config_copy
                             )
                             notifier.send(
                                 f"Task failed: {str(e)}",
