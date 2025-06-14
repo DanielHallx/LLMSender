@@ -1,0 +1,184 @@
+# LLMSender Configuration
+# Copy this file to config.yaml and modify according to your needs
+
+# Global timezone setting
+timezone: "Asia/Shanghai"
+
+# Task definitions
+tasks:
+  # Weather summary task
+  - name: "Morning Weather Report"
+    title: "☀️ Today's Weather"
+    
+    # Content provider configuration
+    content:
+      plugin: weather
+      city: "London"
+      units: "metric"  # metric or imperial
+      language: "en"
+      # api_key: ${OPENWEATHER_API_KEY}  # Can use environment variable
+    
+    # LLM configuration
+    llm:
+      plugin: openai_sender
+      provider: "openai"  # or "azure"
+      model: "gpt-4o"
+      temperature: 0.7
+      max_tokens: 300
+      # api_key: ${OPENAI_API_KEY}
+    
+    # Notification configuration
+    notifiers:
+      - plugin: telegram
+        # bot_token: ${TELEGRAM_BOT_TOKEN}
+        # chat_id: ${TELEGRAM_CHAT_ID}
+        parse_mode: "HTML"
+      
+      - plugin: bark
+        # device_key: ${BARK_DEVICE_KEY}
+        sound: "bell"
+        group: "Weather"
+        level: "active"
+      
+      - plugin: email
+        provider: "gmail"  # gmail, outlook, or generic
+        # username: ${EMAIL_USERNAME}
+        # password: ${EMAIL_PASSWORD}
+        # from_email: ${EMAIL_FROM}
+        # to_emails: ${EMAIL_TO_EMAILS}  # Comma-separated list
+        html_format: true
+        signature: "Sent by LLMSender"
+    
+    # Schedule configuration
+    schedule:
+      type: "cron"
+      hour: 7
+      minute: 30
+      # day_of_week: "mon-fri"  # Optional: only on weekdays
+  
+  # Exchange rate task
+  - name: "Daily Exchange Rates"
+    title: "💱 Exchange Rate Update"
+    
+    content:
+      plugin: exchange_rate
+      type: "fiat"  # or "crypto"
+      base_currency: "USD"
+      target_currencies: ["EUR", "GBP", "CNY", "JPY"]
+      use_free_api: true
+    
+    llm:
+      plugin: openai_sender
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.5
+      max_tokens: 200
+    
+    notifiers:
+      - plugin: telegram
+        parse_mode: "HTML"
+      
+      - plugin: bark
+        mode: "advanced"
+        sound: "coin"
+        group: "Finance"
+    
+    schedule:
+      type: "cron"
+      hour: 9
+      minute: 0
+  
+  # Cryptocurrency prices (runs multiple times per day)
+  - name: "Crypto Price Alert"
+    title: "🪙 Crypto Update"
+    
+    content:
+      plugin: exchange_rate
+      type: "crypto"
+      cryptocurrencies: ["BTC", "ETH", "BNB"]
+      vs_currency: "USD"
+    
+    llm:
+      plugin: openai_sender
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.5
+      max_tokens: 150
+    
+    notifiers:
+      - plugin: bark
+        mode: "simple"
+    
+    schedule:
+      type: "interval"
+      hours: 6  # Every 6 hours
+  
+  # Test task (runs once at startup)
+  - name: "System Test"
+    title: "🔧 System Check"
+    
+    content:
+      plugin: weather
+      city: "Tokyo"
+      units: "metric"
+    
+    llm:
+      plugin: openai_sender
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.5
+      max_tokens: 100
+    
+    notifiers:
+      - plugin: telegram
+    
+    schedule:
+      type: "once"  # Run once at startup
+    
+    # Error notification configuration (optional)
+    error_notifiers:
+      - plugin: telegram
+        parse_mode: "HTML"
+
+# Example of Google Gemini configuration
+# - name: "Gemini AI Example"
+#   content:
+#     plugin: weather
+#     city: "Beijing"
+#   
+#   llm:
+#     plugin: gemini_sender
+#     model: "gemini-2.5-pro"  # or "gemini-1.5-pro"
+#     # api_key: ${GEMINI_API_KEY}
+#     temperature: 0.7
+#     max_output_tokens: 500
+#   
+#   notifiers:
+#     - plugin: telegram
+#   
+#   schedule:
+#     type: "cron"
+#     hour: 12
+#     minute: 0
+
+# Example of Azure OpenAI configuration
+# - name: "Azure OpenAI Example"
+#   content:
+#     plugin: weather
+#     city: "Beijing"
+#   
+#   llm:
+#     plugin: openai_sender
+#     provider: "azure"
+#     # endpoint: ${AZURE_OPENAI_ENDPOINT}
+#     # api_key: ${AZURE_OPENAI_API_KEY}
+#     deployment_name: "gpt-35-turbo"
+#     api_version: "2023-05-15"
+#   
+#   notifiers:
+#     - plugin: telegram
+#   
+#   schedule:
+#     type: "cron"
+#     hour: 12
+#     minute: 0

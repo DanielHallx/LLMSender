@@ -1,0 +1,9 @@
+# Core dependencies
+requests>=2.31.0
+PyYAML>=6.0.1
+APScheduler>=3.10.4
+
+# Optional dependencies for development
+# pytest>=7.4.3
+# black>=23.11.0
+# flake8>=6.1.0
