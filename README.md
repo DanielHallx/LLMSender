@@ -1,5 +1,5 @@
 # LLMSender
-**Together, we run towards the future**  LLMSender By Daniel Hall
+**Together, we run towards the future**  LLMSender By Daniel Hall  
 A modular Python application for scheduled content summarization and notification. Fetch data from various sources (weather, exchange rates, etc.), summarize it using AI, and send notifications via multiple channels.
 
 English ｜ [简体中文](README_cn.md)
