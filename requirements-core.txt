@@ -1,0 +1,13 @@
+# 核心依赖 - 系统运行的最小依赖集
+requests>=2.31.0
+PyYAML>=6.0.1
+APScheduler>=3.10.4
+python-dotenv>=1.0.0
+
+# 安装可选依赖的方法：
+# pip install -e ".[anthropic]"      # Anthropic Claude 支持
+# pip install -e ".[openai]"         # OpenAI 支持
+# pip install -e ".[gemini]"         # Google Gemini 支持
+# pip install -e ".[telegram]"       # Telegram 通知
+# pip install -e ".[all]"            # 安装所有可选依赖
+# pip install -e ".[dev]"            # 开发工具
