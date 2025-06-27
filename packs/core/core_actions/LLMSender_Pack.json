@@ -1,0 +1,72 @@
+{
+  "name": "core_actions",
+  "version": "1.0.0",
+  "description": "Core action components for LLMSender",
+  "author": "LLMSender Core Team",
+  "license": "MIT",
+  
+  "components": {
+    "actions": {
+      "filter": {
+        "description": "Filter content based on various criteria",
+        "parameters": {
+          "min_length": {
+            "type": "integer",
+            "description": "Minimum content length",
+            "default": 0
+          },
+          "max_length": {
+            "type": "integer",
+            "description": "Maximum content length"
+          },
+          "keywords": {
+            "type": "array",
+            "description": "Required keywords",
+            "items": {"type": "string"}
+          },
+          "exclude_keywords": {
+            "type": "array",
+            "description": "Keywords to exclude",
+            "items": {"type": "string"}
+          }
+        },
+        "llm_tool": false
+      },
+      "format": {
+        "description": "Format content in various styles",
+        "parameters": {
+          "format": {
+            "type": "string",
+            "description": "Output format",
+            "enum": ["markdown", "html", "plain", "json"],
+            "default": "plain"
+          },
+          "add_timestamp": {
+            "type": "boolean",
+            "description": "Add timestamp to output",
+            "default": false
+          }
+        },
+        "llm_tool": false
+      },
+      "web_search": {
+        "description": "Search the web for additional information",
+        "parameters": {
+          "query": {
+            "type": "string",
+            "description": "Search query",
+            "required": true
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum number of results",
+            "default": 5
+          }
+        },
+        "llm_tool": true
+      }
+    }
+  },
+  
+  "config_schema": {}
+}

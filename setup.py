@@ -30,6 +30,7 @@ setup(
         # 通知渠道
         'telegram': ['python-telegram-bot>=20.0'],
         'email_advanced': ['emails>=0.6.0'],  # 高级邮件功能
+        'twitter': ['tweepy>=4.14.0'],  # Twitter/X 通知
         
         # 内容源
         'news_advanced': ['newsapi-python>=0.2.7'],  # NewsAPI 官方 SDK
@@ -50,6 +51,7 @@ setup(
             'python-telegram-bot>=20.0',
             'emails>=0.6.0',
             'newsapi-python>=0.2.7',
+            'tweepy>=4.14.0',
         ],
     },
     

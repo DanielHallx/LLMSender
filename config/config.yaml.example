@@ -203,3 +203,30 @@ tasks:
 #     type: "cron"
 #     hour: 12
 #     minute: 0
+
+# Example of Twitter/X notification configuration
+# - name: "Twitter Daily Update"
+#   content:
+#     plugin: weather
+#     city: "New York"
+#   
+#   llm:
+#     plugin: openai_sender
+#     provider: "openai"
+#     model: "gpt-4o"
+#     temperature: 0.7
+#     max_tokens: 200
+#   
+#   notifiers:
+#     - plugin: twitter
+#       # consumer_key: ${TWITTER_CONSUMER_KEY}
+#       # consumer_secret: ${TWITTER_CONSUMER_SECRET}
+#       # access_token: ${TWITTER_ACCESS_TOKEN}
+#       # access_token_secret: ${TWITTER_ACCESS_TOKEN_SECRET}
+#       max_length: 280  # Twitter character limit
+#       include_title: true  # Include task title in tweet
+#   
+#   schedule:
+#     type: "cron"
+#     hour: 10
+#     minute: 0
