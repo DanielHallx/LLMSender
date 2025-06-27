@@ -14,6 +14,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from core.plugin_loader import PluginLoader
+from core.pack_loader import get_pack_loader
+from core.trigger_system import get_trigger_manager
+from core.action_system import get_action_pipeline
 from core.utils import setup_logging, TaskTimer, get_env_var
 
 logger = logging.getLogger(__name__)
@@ -27,6 +30,11 @@ class LLMSenderApp:
         self.config = self._load_config()
         self.scheduler = BlockingScheduler(timezone=self.config.get('timezone', 'Asia/Shanghai'))
         self.running = True
+        
+        # Initialize new pack-based systems
+        self.pack_loader = get_pack_loader()
+        self.trigger_manager = get_trigger_manager()
+        self.action_pipeline = get_action_pipeline()
         
         # 设置信号处理程序以实现正常关闭
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -65,6 +73,12 @@ class LLMSenderApp:
         """正常处理关闭信号。"""
         logger.info(f"Received signal {signum}, shutting down...")
         self.running = False
+        
+        # Shutdown trigger manager first
+        if hasattr(self, 'trigger_manager'):
+            self.trigger_manager.shutdown()
+        
+        # Then shutdown scheduler
         self.scheduler.shutdown(wait=False)
         sys.exit(0)
     
@@ -160,11 +174,171 @@ class LLMSenderApp:
                     except Exception as notify_error:
                         logger.error(f"Failed to send error notification: {notify_error}")
 
+    def execute_pack_task(self, task_config: Dict[str, Any], trigger_data: Dict[str, Any] = None):
+        """Execute a pack-based task with the new flow: Trigger -> Content -> LLM -> Action -> Notifier."""
+        task_name = task_config.get('name', 'Unnamed Pack Task')
+        
+        with TaskTimer(task_name):
+            try:
+                context = {
+                    'task_name': task_name,
+                    'task_config': task_config,
+                    'trigger_data': trigger_data or {},
+                    'timestamp': datetime.utcnow()
+                }
+                
+                # Step 1: Load content (supports both pack and legacy format)
+                content_config = task_config.get('content', {})
+                if 'pack' in task_config:
+                    # Pack-based content loading
+                    pack_name = task_config['pack']
+                    content_type = content_config.get('type', 'default')
+                    content_provider = self.pack_loader.load_component(
+                        pack_name, 'content', content_type, content_config
+                    )
+                else:
+                    # Legacy content loading
+                    content_config_copy = content_config.copy()
+                    content_plugin_name = content_config_copy.pop('plugin', None)
+                    if not content_plugin_name:
+                        raise ValueError("Content plugin not specified")
+                    content_provider = PluginLoader.load_plugin(
+                        'content', content_plugin_name, content_config_copy
+                    )
+                
+                if not content_provider:
+                    raise ValueError("Failed to load content provider")
+                
+                # Fetch content
+                logger.info(f"Fetching content for task: {task_name}")
+                content = content_provider.fetch()
+                prompt = content_provider.get_prompt()
+                context['content'] = content
+                context['prompt'] = prompt
+                
+                # Step 2: Prepare LLM configuration
+                llm_config = task_config.get('llm', {}).copy()
+                llm_plugin_name = llm_config.pop('plugin', None)
+                if not llm_plugin_name:
+                    raise ValueError("LLM plugin not specified")
+                
+                # Step 3: Load actions and prepare LLM tools
+                actions_config = task_config.get('actions', [])
+                llm_tools = []
+                if actions_config:
+                    llm_tools = self.action_pipeline.get_llm_tools(actions_config)
+                    if llm_tools:
+                        llm_config['tools'] = llm_tools
+                        logger.info(f"Loaded {len(llm_tools)} LLM tools from actions")
+                
+                # Step 4: Generate LLM response
+                llm_sender = PluginLoader.load_plugin('llm', llm_plugin_name, llm_config)
+                if not llm_sender:
+                    raise ValueError(f"Failed to load LLM plugin: {llm_plugin_name}")
+                
+                logger.info(f"Using {llm_plugin_name} to generate summary")
+                llm_output = llm_sender.summarize(prompt, content)
+                context['llm_output'] = llm_output
+                
+                # Step 5: Process through action pipeline
+                final_output = llm_output
+                should_notify = True
+                
+                if actions_config:
+                    logger.info(f"Processing through {len(actions_config)} actions")
+                    action_result = self.action_pipeline.execute_pipeline(
+                        llm_output, actions_config, context
+                    )
+                    final_output = action_result.output
+                    should_notify = action_result.should_continue
+                    context['action_metadata'] = action_result.metadata
+                
+                # Step 6: Send notifications (if allowed)
+                if should_notify:
+                    notifiers = task_config.get('notifiers', [])
+                    title = task_config.get('title', task_name)
+                    
+                    for notifier_config in notifiers:
+                        notifier_config_copy = notifier_config.copy()
+                        
+                        # Support both pack and legacy notifiers
+                        if 'pack' in task_config and 'type' in notifier_config:
+                            pack_name = task_config['pack']
+                            notifier_type = notifier_config_copy.pop('type')
+                            notifier = self.pack_loader.load_component(
+                                pack_name, 'notifiers', notifier_type, notifier_config_copy
+                            )
+                        else:
+                            # Legacy notifier loading
+                            notifier_plugin_name = notifier_config_copy.pop('plugin', None)
+                            if not notifier_plugin_name:
+                                logger.warning("Notifier plugin not specified, skipping")
+                                continue
+                            notifier = PluginLoader.load_plugin(
+                                'notifier', notifier_plugin_name, notifier_config_copy
+                            )
+                        
+                        if notifier:
+                            try:
+                                logger.info(f"Sending notification via {notifier.__class__.__name__}")
+                                success = notifier.send(final_output, title)
+                                if success:
+                                    logger.info("Notification sent successfully")
+                                else:
+                                    logger.error("Failed to send notification")
+                            except Exception as e:
+                                logger.error(f"Notifier error: {e}")
+                else:
+                    logger.info("Notification skipped by action pipeline")
+                
+                logger.info(f"Pack task '{task_name}' completed successfully")
+                
+            except Exception as e:
+                logger.error(f"Pack task '{task_name}' failed: {e}")
+                # Handle error notifications same as legacy
+                error_notifiers = task_config.get('error_notifiers', [])
+                for notifier_config in error_notifiers:
+                    try:
+                        notifier_config_copy = notifier_config.copy()
+                        notifier_plugin_name = notifier_config_copy.pop('plugin', None)
+                        if notifier_plugin_name:
+                            notifier = PluginLoader.load_plugin(
+                                'notifier', notifier_plugin_name, notifier_config_copy
+                            )
+                            notifier.send(f"Task failed: {str(e)}", f"Error: {task_name}")
+                    except Exception as notify_error:
+                        logger.error(f"Failed to send error notification: {notify_error}")
+
     def schedule_tasks(self):
         """根据配置计划所有任务。"""
         tasks = self.config.get('tasks', [])
         
         for task in tasks:
+            task_name = task.get('name', f'task_{id(task)}')
+            
+            # Determine if this is a pack-based task or legacy task
+            is_pack_task = 'pack' in task or 'actions' in task or 'trigger' in task
+            execute_func = self.execute_pack_task if is_pack_task else self.execute_task
+            
+            # Handle custom triggers for pack tasks
+            if is_pack_task and 'trigger' in task:
+                trigger_config = task.get('trigger', {})
+                trigger_type = trigger_config.get('type', '')
+                
+                if trigger_type and '.' in trigger_type:
+                    # Custom pack trigger
+                    def task_callback(trigger_data):
+                        execute_func(task, trigger_data)
+                    
+                    self.trigger_manager.register_trigger(
+                        trigger_id=task_name,
+                        trigger_config=trigger_config,
+                        callback=task_callback
+                    )
+                    logger.info(f"Registered pack trigger for task '{task_name}': {trigger_type}")
+                    continue
+            
+            # Handle traditional scheduling
             schedule = task.get('schedule', {})
             if schedule.get('type') == 'cron':
                 # 基于 Cron 的计划
@@ -177,37 +351,37 @@ class LLMSenderApp:
                     timezone=self.config.get('timezone', 'Asia/Shanghai')
                 )
                 self.scheduler.add_job(
-                    func=self.execute_task,
+                    func=execute_func,
                     trigger=trigger,
                     args=[task],
-                    id=task.get('name', f'task_{id(task)}'),
+                    id=task_name,
                     name=task.get('name', 'Unnamed Task')
                 )
-                logger.info(f"Scheduled cron task '{task.get('name')}'")
+                logger.info(f"Scheduled cron task '{task_name}' ({'pack' if is_pack_task else 'legacy'})")
 
             elif schedule.get('type') == 'interval':
                 # 基于间隔的计划
                 self.scheduler.add_job(
-                    func=self.execute_task,
+                    func=execute_func,
                     trigger='interval',
                     seconds=schedule.get('seconds', 0),
                     minutes=schedule.get('minutes', 0),
                     hours=schedule.get('hours', 0),
                     args=[task],
-                    id=task.get('name', f'task_{id(task)}'),
+                    id=task_name,
                     name=task.get('name', 'Unnamed Task')
                 )
-                logger.info(f"Scheduled interval task '{task.get('name')}'")
+                logger.info(f"Scheduled interval task '{task_name}' ({'pack' if is_pack_task else 'legacy'})")
 
             elif schedule.get('type') == 'once':
                 # 启动时运行一次
                 self.scheduler.add_job(
-                    func=self.execute_task,
+                    func=execute_func,
                     args=[task],
-                    id=task.get('name', f'task_{id(task)}'),
+                    id=task_name,
                     name=task.get('name', 'Unnamed Task')
                 )
-                logger.info(f"Scheduled one-time task '{task.get('name')}'")
+                logger.info(f"Scheduled one-time task '{task_name}' ({'pack' if is_pack_task else 'legacy'})")
 
     def run(self):
         """启动应用程序。"""

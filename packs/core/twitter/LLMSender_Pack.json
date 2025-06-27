@@ -1,0 +1,150 @@
+{
+  "name": "twitter",
+  "version": "1.0.0",
+  "description": "Twitter integration pack for LLMSender",
+  "author": "LLMSender Core Team",
+  "icon": "https://abs.twimg.com/icons/apple-touch-icon-192x192.png",
+  "homepage": "https://github.com/llmsender/packs/twitter",
+  "license": "MIT",
+  
+  "components": {
+    "triggers": {
+      "new_tweet": {
+        "description": "Trigger when a user posts a new tweet",
+        "parameters": {
+          "username": {
+            "type": "string",
+            "description": "Twitter username to monitor (without @)",
+            "required": true
+          },
+          "check_interval": {
+            "type": "integer",
+            "description": "Check interval in seconds",
+            "default": 300
+          }
+        }
+      },
+      "user_mention": {
+        "description": "Trigger when someone mentions a user",
+        "parameters": {
+          "username": {
+            "type": "string",
+            "description": "Twitter username to monitor mentions for",
+            "required": true
+          }
+        }
+      }
+    },
+    
+    "content": {
+      "fetch_tweets": {
+        "description": "Fetch tweets from a user's timeline",
+        "parameters": {
+          "username": {
+            "type": "string",
+            "description": "Twitter username",
+            "required": true
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of tweets to fetch",
+            "default": 10
+          }
+        }
+      },
+      "fetch_timeline": {
+        "description": "Fetch home timeline",
+        "parameters": {
+          "count": {
+            "type": "integer",
+            "description": "Number of tweets to fetch",
+            "default": 20
+          }
+        }
+      }
+    },
+    
+    "actions": {
+      "filter_tweets": {
+        "description": "Filter tweets based on criteria",
+        "parameters": {
+          "min_likes": {
+            "type": "integer",
+            "description": "Minimum number of likes",
+            "default": 0
+          },
+          "keywords": {
+            "type": "array",
+            "description": "Keywords to filter by",
+            "items": {"type": "string"}
+          }
+        },
+        "llm_tool": true
+      },
+      "translate_tweet": {
+        "description": "Translate tweet content",
+        "parameters": {
+          "target_language": {
+            "type": "string",
+            "description": "Target language code",
+            "required": true
+          }
+        },
+        "llm_tool": false
+      }
+    },
+    
+    "notifiers": {
+      "post_tweet": {
+        "description": "Post a new tweet",
+        "parameters": {
+          "reply_to": {
+            "type": "string",
+            "description": "Tweet ID to reply to"
+          }
+        }
+      },
+      "send_dm": {
+        "description": "Send a direct message",
+        "parameters": {
+          "recipient": {
+            "type": "string",
+            "description": "Username to send DM to",
+            "required": true
+          }
+        }
+      }
+    }
+  },
+  
+  "dependencies": {
+    "python": ["tweepy>=4.0.0", "python-dotenv"]
+  },
+  
+  "config_schema": {
+    "api_key": {
+      "type": "string",
+      "description": "Twitter API Key",
+      "required": true,
+      "env": "TWITTER_API_KEY"
+    },
+    "api_secret": {
+      "type": "string",
+      "description": "Twitter API Secret",
+      "required": true,
+      "env": "TWITTER_API_SECRET"
+    },
+    "access_token": {
+      "type": "string",
+      "description": "Twitter Access Token",
+      "required": true,
+      "env": "TWITTER_ACCESS_TOKEN"
+    },
+    "access_token_secret": {
+      "type": "string",
+      "description": "Twitter Access Token Secret",
+      "required": true,
+      "env": "TWITTER_ACCESS_TOKEN_SECRET"
+    }
+  }
+}
