@@ -4,10 +4,9 @@ import time
 import re
 import signal
 import threading
-from typing import Any, Callable, Optional, Dict, List
+from typing import Any, Callable, Optional, Dict
 from contextlib import contextmanager
 import os
-from datetime import datetime
 import sys
 
 from .exceptions import TaskTimeoutError
@@ -112,13 +111,6 @@ def get_env_var(key: str, default: Optional[str] = None, required: bool = False)
         raise ValueError(f"Required environment variable '{key}' is not set")
     
     return value
-
-
-def sanitize_for_log(text: str, max_length: int = 100) -> str:
-    """Sanitize sensitive data for logging."""
-    if len(text) > max_length:
-        return f"{text[:max_length]}... (truncated)"
-    return text
 
 
 class TaskTimer:

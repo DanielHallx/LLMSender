@@ -80,18 +80,28 @@ def reset_singletons():
         from core.pack_loader import reset_pack_loader
         reset_pack_loader()
     except ImportError:
+        # Optional in some test configurations; skip reset if not available.
         pass
     
     try:
         from core.action_system import reset_action_pipeline
         reset_action_pipeline()
     except ImportError:
+        # Optional in some test configurations; skip reset if not available.
         pass
     
     try:
         from core.trigger_system import reset_trigger_manager
         reset_trigger_manager()
     except ImportError:
+        # Optional in some test configurations; skip reset if not available.
+        pass
+    
+    try:
+        from core.task_executor import reset_task_executor
+        reset_task_executor()
+    except ImportError:
+        # Optional in some test configurations; skip reset if not available.
         pass
 
 

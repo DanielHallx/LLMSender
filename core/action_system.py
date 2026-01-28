@@ -154,8 +154,9 @@ class ActionPipeline:
                         pack_name, 'actions', factory_name, action_config
                     )
                     if action:
-                        # Cache for future use
-                        self._actions[action_type] = action
+                        # For pack-based actions, do not cache by type alone,
+                        # since the same action type may be configured multiple
+                        # times with different parameters in a pipeline.
                         return action
                 except Exception as e:
                     logger.error(f"Failed to load action from pack: {e}")

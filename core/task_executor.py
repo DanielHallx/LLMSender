@@ -6,14 +6,14 @@ Provides a single execution flow for both legacy and pack-based tasks,
 reducing code duplication and improving maintainability.
 """
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass, field
 
 from .plugin_loader import PluginLoader
 from .pack_loader import get_pack_loader
 from .action_system import get_action_pipeline
-from .config_validator import ConfigValidator, ValidationResult
+from .config_validator import ConfigValidator
 from .utils import TaskTimer, sanitize_config_for_log
 from .exceptions import (
     ConfigurationError,

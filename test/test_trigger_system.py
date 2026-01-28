@@ -3,7 +3,6 @@
 Tests for the TriggerManager system.
 """
 import pytest
-from typing import Dict, Any
 from unittest.mock import MagicMock
 
 from core.trigger_system import TriggerManager, get_trigger_manager, reset_trigger_manager
