@@ -173,6 +173,10 @@ def timeout(seconds: int, operation_name: str = "operation"):
     Raises:
         TaskTimeoutError: If operation exceeds timeout
         
+    Note:
+        On Windows or in non-main threads, timeout is not enforced and a warning is logged.
+        This is a limitation of signal-based timeouts.
+        
     Example:
         >>> with timeout(30, "API call"):
         ...     response = api.call()
@@ -197,6 +201,11 @@ def timeout(seconds: int, operation_name: str = "operation"):
     else:
         # Fallback for non-Unix or non-main thread - just yield without timeout
         # Real timeout would require threading which adds complexity
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Timeout not enforced for '{operation_name}': "
+            "signal-based timeout only works on Unix in main thread"
+        )
         yield
 
 
@@ -229,21 +238,22 @@ def with_timeout(seconds: int, operation_name: str = "operation"):
 # Log Sanitization Utilities
 # =============================================================================
 
-# Patterns for sensitive data
+# Patterns for sensitive data - only match when in context
 SENSITIVE_PATTERNS = [
     (re.compile(r'(api[_-]?key\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
     (re.compile(r'(api[_-]?secret\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
-    (re.compile(r'(token\s*[=:]\s*)["\']?[\w\-\.]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
-    (re.compile(r'(password\s*[=:]\s*)["\']?[^\s"\']+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
-    (re.compile(r'(secret\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
-    (re.compile(r'(auth\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(\btoken\s*[=:]\s*)["\']?[\w\-\.]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(\bpassword\s*[=:]\s*)["\']?[^\s"\']+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(\bsecret\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(\bauth\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
     (re.compile(r'(bearer\s+)[\w\-\.]+', re.IGNORECASE), r'\1[REDACTED]'),
-    # API key patterns (common formats)
+    # API key patterns (well-known formats only)
     (re.compile(r'sk-[a-zA-Z0-9]{20,}'), '[REDACTED_API_KEY]'),
-    (re.compile(r'[a-zA-Z0-9]{32,64}'), lambda m: '[REDACTED_KEY]' if len(m.group()) >= 40 else m.group()),
+    # AWS access key format
+    (re.compile(r'AKIA[A-Z0-9]{16}'), '[REDACTED_AWS_KEY]'),
 ]
 
-# Keys that should be redacted in config dictionaries
+# Keys that should be redacted in config dictionaries (exact matches only)
 SENSITIVE_KEYS = {
     'api_key', 'api_secret', 'apikey', 'apisecret',
     'token', 'access_token', 'access_token_secret',
@@ -297,10 +307,18 @@ def sanitize_config_for_log(config: Dict[str, Any], depth: int = 0, max_depth: i
     
     result = {}
     for key, value in config.items():
-        key_lower = key.lower()
+        config_key_lower = key.lower()
         
-        # Check if key is sensitive
-        if key_lower in SENSITIVE_KEYS or any(s in key_lower for s in ['key', 'secret', 'token', 'password']):
+        # Check if key is sensitive (exact match or contains sensitive words as whole words)
+        is_sensitive = (
+            config_key_lower in SENSITIVE_KEYS or
+            any(config_key_lower.endswith(f'_{s}') or config_key_lower.endswith(f'-{s}') or 
+                config_key_lower.startswith(f'{s}_') or config_key_lower.startswith(f'{s}-') or
+                config_key_lower == s
+                for s in ['key', 'secret', 'token', 'password', 'auth', 'credential'])
+        )
+        
+        if is_sensitive:
             result[key] = '[REDACTED]'
         elif isinstance(value, dict):
             result[key] = sanitize_config_for_log(value, depth + 1, max_depth)

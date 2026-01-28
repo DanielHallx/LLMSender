@@ -187,11 +187,12 @@ class TaskExecutor:
         trigger_data: Optional[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Build execution context."""
+        from datetime import timezone
         return {
             'task_name': task_config.get('name', 'Unnamed Task'),
             'task_config': sanitize_config_for_log(task_config),
             'trigger_data': trigger_data or {},
-            'timestamp': datetime.utcnow()
+            'timestamp': datetime.now(timezone.utc)
         }
     
     def _is_pack_task(self, task_config: Dict[str, Any]) -> bool:

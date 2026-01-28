@@ -208,9 +208,9 @@ class PackLoader:
                 components = {}
                 
                 # Check for each component type
-                for comp_type, module_name in self.COMPONENT_MODULES.items():
-                    comp_path = pack_path / module_name
-                    components[comp_type] = comp_path.exists() and (comp_path / 'main.py').exists()
+                for component_type, module_name in self.COMPONENT_MODULES.items():
+                    component_path = pack_path / module_name
+                    components[component_type] = component_path.exists() and (component_path / 'main.py').exists()
                 
                 packs[pack_name] = components
                 logger.debug(f"Discovered pack '{pack_name}': {components}")
