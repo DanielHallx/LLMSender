@@ -1,10 +1,16 @@
 import logging
 import functools
 import time
-from typing import Any, Callable, Optional
+import re
+import signal
+import threading
+from typing import Any, Callable, Optional, Dict, List
+from contextlib import contextmanager
 import os
 from datetime import datetime
 import sys
+
+from .exceptions import TaskTimeoutError
 
 
 class ColoredFormatter(logging.Formatter):
@@ -149,3 +155,189 @@ class TaskTimer:
             return 0.0
         end = self.end_time or time.time()
         return end - self.start_time
+
+
+# =============================================================================
+# Timeout Utilities
+# =============================================================================
+
+@contextmanager
+def timeout(seconds: int, operation_name: str = "operation"):
+    """
+    Context manager for operation timeout control.
+    
+    Args:
+        seconds: Timeout in seconds
+        operation_name: Name of the operation (for error messages)
+        
+    Raises:
+        TaskTimeoutError: If operation exceeds timeout
+        
+    Example:
+        >>> with timeout(30, "API call"):
+        ...     response = api.call()
+    """
+    def _timeout_handler(signum, frame):
+        raise TaskTimeoutError(f"{operation_name} timed out after {seconds} seconds")
+    
+    # Only use signal-based timeout on Unix-like systems and in main thread
+    use_signal = (
+        hasattr(signal, 'SIGALRM') and 
+        threading.current_thread() is threading.main_thread()
+    )
+    
+    if use_signal:
+        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(seconds)
+        try:
+            yield
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
+    else:
+        # Fallback for non-Unix or non-main thread - just yield without timeout
+        # Real timeout would require threading which adds complexity
+        yield
+
+
+def with_timeout(seconds: int, operation_name: str = "operation"):
+    """
+    Decorator for adding timeout to a function.
+    
+    Args:
+        seconds: Timeout in seconds
+        operation_name: Name of the operation (for error messages)
+        
+    Returns:
+        Decorated function
+        
+    Example:
+        >>> @with_timeout(30, "API call")
+        ... def call_api():
+        ...     return api.call()
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Any:
+            with timeout(seconds, operation_name or func.__name__):
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# =============================================================================
+# Log Sanitization Utilities
+# =============================================================================
+
+# Patterns for sensitive data
+SENSITIVE_PATTERNS = [
+    (re.compile(r'(api[_-]?key\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(api[_-]?secret\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(token\s*[=:]\s*)["\']?[\w\-\.]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(password\s*[=:]\s*)["\']?[^\s"\']+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(secret\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(auth\s*[=:]\s*)["\']?[\w\-]+["\']?', re.IGNORECASE), r'\1[REDACTED]'),
+    (re.compile(r'(bearer\s+)[\w\-\.]+', re.IGNORECASE), r'\1[REDACTED]'),
+    # API key patterns (common formats)
+    (re.compile(r'sk-[a-zA-Z0-9]{20,}'), '[REDACTED_API_KEY]'),
+    (re.compile(r'[a-zA-Z0-9]{32,64}'), lambda m: '[REDACTED_KEY]' if len(m.group()) >= 40 else m.group()),
+]
+
+# Keys that should be redacted in config dictionaries
+SENSITIVE_KEYS = {
+    'api_key', 'api_secret', 'apikey', 'apisecret',
+    'token', 'access_token', 'access_token_secret',
+    'password', 'passwd', 'secret', 'private_key',
+    'consumer_key', 'consumer_secret', 'bearer_token',
+    'auth', 'authorization', 'credentials',
+}
+
+
+def sanitize_for_log(text: str, max_length: int = 100) -> str:
+    """
+    Sanitize sensitive data for logging.
+    
+    Args:
+        text: Text to sanitize
+        max_length: Maximum length before truncation
+        
+    Returns:
+        Sanitized text
+    """
+    # Apply sensitive patterns
+    result = text
+    for pattern, replacement in SENSITIVE_PATTERNS:
+        if callable(replacement):
+            result = pattern.sub(replacement, result)
+        else:
+            result = pattern.sub(replacement, result)
+    
+    # Truncate if too long
+    if len(result) > max_length:
+        return f"{result[:max_length]}... (truncated)"
+    return result
+
+
+def sanitize_config_for_log(config: Dict[str, Any], depth: int = 0, max_depth: int = 10) -> Dict[str, Any]:
+    """
+    Sanitize configuration dictionary for logging.
+    
+    Recursively processes dictionaries and lists, redacting sensitive values.
+    
+    Args:
+        config: Configuration dictionary
+        depth: Current recursion depth
+        max_depth: Maximum recursion depth
+        
+    Returns:
+        Sanitized configuration dictionary
+    """
+    if depth > max_depth:
+        return {"_truncated": "max depth exceeded"}
+    
+    result = {}
+    for key, value in config.items():
+        key_lower = key.lower()
+        
+        # Check if key is sensitive
+        if key_lower in SENSITIVE_KEYS or any(s in key_lower for s in ['key', 'secret', 'token', 'password']):
+            result[key] = '[REDACTED]'
+        elif isinstance(value, dict):
+            result[key] = sanitize_config_for_log(value, depth + 1, max_depth)
+        elif isinstance(value, list):
+            result[key] = [
+                sanitize_config_for_log(item, depth + 1, max_depth) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            result[key] = value
+    
+    return result
+
+
+class SecureLogFilter(logging.Filter):
+    """
+    Logging filter that sanitizes sensitive data.
+    
+    Add to a logger to automatically sanitize messages:
+        logger.addFilter(SecureLogFilter())
+    """
+    
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filter and sanitize log record."""
+        if isinstance(record.msg, str):
+            record.msg = sanitize_for_log(record.msg, max_length=10000)
+        
+        # Sanitize arguments if present
+        if record.args:
+            sanitized_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    sanitized_args.append(sanitize_for_log(arg, max_length=10000))
+                elif isinstance(arg, dict):
+                    sanitized_args.append(sanitize_config_for_log(arg))
+                else:
+                    sanitized_args.append(arg)
+            record.args = tuple(sanitized_args)
+        
+        return True
