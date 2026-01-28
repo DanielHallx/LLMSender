@@ -121,8 +121,8 @@ class SendDMNotifier(Notifier):
                 logger.error(f"Failed to get user ID for {self.recipient}: {e}")
                 return False
             
-            # Send DM (Note: This requires special permissions and API access)
-            # For demo purposes, we'll just log it
+            # TODO: STUB IMPLEMENTATION - Send DM (Note: This requires special permissions and API access)
+            # For demo purposes, we'll just log it. Real implementation would use Twitter API v2.
             logger.info(f"Would send DM to @{self.recipient}: {dm_content[:100]}...")
             
             # In a real implementation, you'd use:

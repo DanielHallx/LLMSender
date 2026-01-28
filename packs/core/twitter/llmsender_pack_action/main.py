@@ -131,8 +131,8 @@ class TranslateTweetAction(Action):
                 'metadata': {'translated': False}
             }
         
-        # For demo purposes, just add a note about translation
-        # In a real implementation, you'd use a translation service
+        # TODO: STUB IMPLEMENTATION - For demo purposes, just add a note about translation
+        # In a real implementation, you'd use a translation service (e.g., Google Translate API)
         translated_output = f"[Translated to {self.target_language}]\n{llm_output}"
         
         return {

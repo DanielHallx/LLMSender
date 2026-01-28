@@ -152,12 +152,12 @@ class WebSearchAction(Action):
     
     def process(self, llm_output: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Perform web search and append results."""
-        # This is a mock implementation
-        # In a real implementation, you'd use a search API like Google, Bing, etc.
+        # TODO: STUB IMPLEMENTATION - This is a mock implementation
+        # In a real implementation, you'd use a search API like Google, Bing, DuckDuckGo, etc.
         
         search_query = self.query or self._extract_search_terms(llm_output)
         
-        # Mock search results
+        # Mock search results (replace with real API calls in production)
         mock_results = [
             f"Search result {i+1} for '{search_query}': Mock information about {search_query}"
             for i in range(min(self.max_results, 3))
